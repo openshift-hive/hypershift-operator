@@ -1,6 +1,6 @@
 FROM openshift/origin-release:golang-1.13 as builder
 RUN mkdir -p /go/src/github.com/openshift-hive/hypershift-operator
-WORKDIR /go/src/github.com/openshift/hypershift-operator
+WORKDIR /go/src/github.com/openshift-hive/hypershift-operator
 COPY . .
 RUN go build -mod=vendor -o ./bin/hypershift-operator ./cmd/hypershift-operator/main.go
 
