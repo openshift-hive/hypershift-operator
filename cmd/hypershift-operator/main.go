@@ -94,16 +94,14 @@ func newControlPlaneOperatorCommand() *cobra.Command {
 }
 
 func newControlPlaneOperator() *ControlPlaneOperator {
-	return &ControlPlaneOperator{
-		Controllers: []string{
-			"controller-manager-ca",
-			"cluster-operator",
-			"cluster-version",
-			"kubelet-serving-ca",
-			"openshift-apiserver",
-			"openshift-controller-manager",
-		},
+	// By default all controllers are enabled
+	controllers := make([]string, len(controllerFuncs))
+	cnt := 0
+	for name := range controllerFuncs {
+		controllers[cnt] = name
+		cnt += 1
 	}
+	return &ControlPlaneOperator{Controllers: controllers}
 }
 
 func (o *ControlPlaneOperator) Validate() error {

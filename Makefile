@@ -4,7 +4,7 @@ SRC_DIRS = cmd pkg
 default: all
 
 .PHONY: all
-all: verify build
+all: test build
 
 .PHONY: build
 build:  
@@ -19,5 +19,16 @@ verify-gofmt:
 	  cat .out && echo && rm .out && false)
 	@rm .out
 
+.PHONY: fmt
+fmt:
+	gofmt -w -s $(SRC_DIRS)
+
+.PHONY: unit
+unit:
+	go test -mod=vendor ./pkg/... ./cmd/...
+
 .PHONY: verify
 verify: verify-gofmt
+
+.PHONY: test
+test: verify unit
