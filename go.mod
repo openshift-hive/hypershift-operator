@@ -11,6 +11,7 @@ require (
 	github.com/openshift/library-go v0.0.0-20200131215035-839609804250
 	github.com/prometheus/common v0.2.0 // indirect
 	github.com/spf13/cobra v0.0.5
+	github.com/stretchr/testify v1.4.0
 	golang.org/x/sys v0.0.0-20190626221950-04f50cda93cb // indirect
 	k8s.io/api v0.17.1
 	k8s.io/apimachinery v0.17.1
