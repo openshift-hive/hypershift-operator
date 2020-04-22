@@ -1,24 +1,27 @@
 package kubeadminpwd
 
 import (
-	"context"
+	"crypto/md5"
+	"encoding/json"
+	"fmt"
 
 	"github.com/go-logr/logr"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubeclient "k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	OAuthDeploymentName = "oauth-openshift"
+	OAuthDeploymentName  = "oauth-openshift"
+	SecretHashAnnotation = "hypershift.openshift.io/kubeadmin-secret-hash"
 )
 
 type OAuthRestarter struct {
-	// Client is a client of the management cluster
-	client.Client
+	// Client is a client that allows access to the management cluster
+	Client kubeclient.Interface
 
 	// Log is the logger for this controller
 	Log logr.Logger
@@ -26,52 +29,65 @@ type OAuthRestarter struct {
 	// Namespace is the namespace where the control plane of the cluster
 	// lives on the management server
 	Namespace string
+
+	// SecretLister is a lister for target cluster secrets
+	SecretLister corelisters.SecretLister
 }
 
 func (o *OAuthRestarter) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	controllerLog := o.Log.WithValues("pod", req.NamespacedName.String())
-	ctx := context.Background()
+	controllerLog := o.Log.WithValues("secret", req.NamespacedName.String())
 
-	// Ignore any namespace that is not the Namespace.
-	if req.Namespace != o.Namespace {
-		return ctrl.Result{}, nil
-	}
-
-	// Ignore all pods except the manifest bootstrapper
-	if req.Name != ManifestBootstrapperPod {
+	// Ignore any secret that is not kube-system/kubeadmin
+	if req.Namespace != metav1.NamespaceSystem || req.Name != KubeAdminSecret {
 		return ctrl.Result{}, nil
 	}
 
 	controllerLog.Info("Begin reconciling")
 
-	pod := &corev1.Pod{}
-	if err := o.Get(ctx, req.NamespacedName, pod); err != nil {
+	secret, err := o.SecretLister.Secrets(metav1.NamespaceSystem).Get(KubeAdminSecret)
+	if err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	}
-
-	if !isComplete(pod) {
-		controllerLog.Info("Pod has not yet completed")
+	hash := ""
+	if err == nil {
+		hash, err = calculateHash(secret.Data)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	oauthDeployment, err := o.Client.AppsV1().Deployments(o.Namespace).Get(OAuthDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	updateNeeded := false
+	if hash == "" {
+		_, hasAnnotation := oauthDeployment.Spec.Template.ObjectMeta.Annotations[SecretHashAnnotation]
+		if hasAnnotation {
+			delete(oauthDeployment.Spec.Template.ObjectMeta.Annotations, SecretHashAnnotation)
+			updateNeeded = true
+		}
+	} else {
+		if oauthDeployment.Spec.Template.ObjectMeta.Annotations == nil {
+			oauthDeployment.Spec.Template.ObjectMeta.Annotations = map[string]string{}
+		}
+		currentValue := oauthDeployment.Spec.Template.ObjectMeta.Annotations[SecretHashAnnotation]
+		if currentValue != hash {
+			oauthDeployment.Spec.Template.ObjectMeta.Annotations[SecretHashAnnotation] = hash
+			updateNeeded = true
+		}
+	}
+	if !updateNeeded {
 		return ctrl.Result{}, nil
 	}
-
-	controllerLog.Info("Pod has completed, annotating the OAuth deployment")
-
-	oauthDeployment := &appsv1.Deployment{}
-	if err := o.Get(ctx, types.NamespacedName{Namespace: o.Namespace, Name: OAuthDeploymentName}, oauthDeployment); err != nil {
-		return ctrl.Result{}, err
-	}
-	if oauthDeployment.Spec.Template.ObjectMeta.Annotations == nil {
-		oauthDeployment.Spec.Template.ObjectMeta.Annotations = map[string]string{}
-	}
-	oauthDeployment.Spec.Template.ObjectMeta.Annotations["bootstrap-pod-resource-version"] = pod.ResourceVersion
-
-	if err := o.Update(ctx, oauthDeployment); err != nil {
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, nil
+	controllerLog.Info("Updating Outh Server deployment")
+	_, err = o.Client.AppsV1().Deployments(o.Namespace).Update(oauthDeployment)
+	return ctrl.Result{}, err
 }
 
-func isComplete(pod *corev1.Pod) bool {
-	return pod.Status.Phase == corev1.PodSucceeded
-
+func calculateHash(data map[string][]byte) (string, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", md5.Sum(b)), nil
 }
