@@ -1,3 +1,5 @@
+IMG ?= hypershift-operator:latest
+
 SRC_DIRS = cmd pkg
 
 .PHONY: default
@@ -32,3 +34,11 @@ verify: verify-gofmt
 
 .PHONY: test
 test: verify unit
+
+.PHONY: build-container
+build-container:
+	buildah build-using-dockerfile --tag ${IMG} .
+
+.PHONY: push-container
+push-container: build-container
+	buildah push ${IMG}
