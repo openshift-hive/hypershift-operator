@@ -21,6 +21,7 @@ import (
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/kubelet_serving_ca"
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/openshift_apiserver"
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/openshift_controller_manager"
+	"github.com/openshift-hive/hypershift-operator/pkg/controllers/routesync"
 )
 
 const (
@@ -45,6 +46,7 @@ var controllerFuncs = map[string]operator.ControllerSetupFunc{
 	"kubelet-serving-ca":           kubelet_serving_ca.Setup,
 	"openshift-apiserver":          openshift_apiserver.Setup,
 	"openshift-controller-manager": openshift_controller_manager.Setup,
+	"route-sync":                   routesync.Setup,
 }
 
 type ControlPlaneOperator struct {
