@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	errorsutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/pointer"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,7 +49,6 @@ const (
 
 // RouteSyncReconciler holds the fields necessary to run the Route Sync reconciliation
 type RouteSyncReconciler struct {
-	TargetClient routeclient.Interface
 	HostClient   routeclient.Interface
 	Namespace    string // Note: the target cluster name and the namespace it resides in are the same
 	TargetLister routelister.RouteLister
@@ -106,12 +106,17 @@ func (r *RouteSyncReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
+	errorList := []error{}
 	for _, route := range routesToCreate {
 		r.Log.Info("Will create route", "route", route.Name)
 		_, err := r.HostClient.RouteV1().Routes(r.Namespace).Create(route)
-		if err != nil {
+		// ignore if it already exists error to not clog up the logs
+		// when starting the controller
+		if err != nil && !errors.IsAlreadyExists(err) {
 			r.Log.Error(err, "failed to create route")
-			return ctrl.Result{}, err
+			errorList = append(errorList, err)
+		} else if errors.IsAlreadyExists(err) {
+			r.Log.Info("route already exists", "route", route.Name)
 		}
 	}
 	for _, route := range routesToUpdate {
@@ -119,7 +124,7 @@ func (r *RouteSyncReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		_, err := r.HostClient.RouteV1().Routes(r.Namespace).Update(route)
 		if err != nil {
 			r.Log.Error(err, "failed to update route")
-			return ctrl.Result{}, err
+			errorList = append(errorList, err)
 		}
 	}
 	for _, route := range routesToDelete {
@@ -127,11 +132,11 @@ func (r *RouteSyncReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		err := r.HostClient.RouteV1().Routes(r.Namespace).Delete(route.Name, &metav1.DeleteOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			r.Log.Error(err, "failed to delete route")
-			return ctrl.Result{}, err
+			errorList = append(errorList, err)
 		}
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, errorsutil.NewAggregate(errorList)
 }
 
 func hostRouteNeedsDeletion(proposedHostRoutes []*routev1.Route, hostRoute *routev1.Route) bool {
@@ -145,7 +150,7 @@ func hostRouteNeedsDeletion(proposedHostRoutes []*routev1.Route, hostRoute *rout
 
 func (r *RouteSyncReconciler) createSyncRouteFromTarget(currentRoutes []*routev1.Route, tRoute *routev1.Route) (*routev1.Route, processRoute) {
 	targetRouteNamespacedName := fmt.Sprintf("%s-%s", tRoute.Namespace, tRoute.Name)
-	syncedRouteName := r.generateRouteName(targetRouteNamespacedName)
+	syncedRouteName := generateRouteName(targetRouteNamespacedName, r.Namespace)
 
 	var existingRoute *routev1.Route
 
@@ -188,7 +193,7 @@ func (r *RouteSyncReconciler) createSyncRouteFromTarget(currentRoutes []*routev1
 		return sRoute, createRoute
 	}
 
-	if reflect.DeepEqual(existingRoute.Spec, sRoute.Spec) {
+	if routeEqual(existingRoute, sRoute) {
 		// Already up to date, so skip.
 		return existingRoute, skipRoute
 	}
@@ -197,9 +202,32 @@ func (r *RouteSyncReconciler) createSyncRouteFromTarget(currentRoutes []*routev1
 	return existingRoute, updateRoute
 }
 
-func (r *RouteSyncReconciler) generateRouteName(name string) string {
-	suffix := fmt.Sprintf("%s-%s", r.Namespace, name)
+func generateRouteName(routeName, clusterName string) string {
+	suffix := fmt.Sprintf("%s-%s", clusterName, routeName)
 	return GetResourceName("childroute", suffix)
+}
+
+// routeEqual is a custom route equality comparison that only looks at the fields that this
+// controller sets.
+func routeEqual(route1, route2 *routev1.Route) bool {
+
+	if route1.Labels[routeLabel] != route2.Labels[routeLabel] {
+		return false
+	}
+
+	if route1.Spec.Host != route2.Spec.Host {
+		return false
+	}
+
+	if !reflect.DeepEqual(route1.Spec.To, route2.Spec.To) {
+		return false
+	}
+
+	if !reflect.DeepEqual(route1.Spec.TLS, route2.Spec.TLS) {
+		return false
+	}
+
+	return true
 }
 
 func listOfAllRoutes(routesToCreate, routesToUpdate, routesToSkip []*routev1.Route) []*routev1.Route {

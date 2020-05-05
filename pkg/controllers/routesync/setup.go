@@ -39,7 +39,6 @@ func Setup(cfg *operator.ControlPlaneOperatorConfig) error {
 	hostRoutes := hostInformerFactory.Route().V1().Routes()
 
 	reconciler := &RouteSyncReconciler{
-		TargetClient: targetClient,
 		HostClient:   hostClient,
 		Namespace:    cfg.Namespace(),
 		TargetLister: targetRoutes.Lister(),
@@ -53,8 +52,6 @@ func Setup(cfg *operator.ControlPlaneOperatorConfig) error {
 	if err := c.Watch(&source.Informer{Informer: targetRoutes.Informer()}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	if err := c.Watch(&source.Informer{Informer: hostRoutes.Informer()}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
-	}
+
 	return nil
 }
