@@ -17,6 +17,7 @@ import (
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/clusteroperator"
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/clusterversion"
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/cmca"
+	"github.com/openshift-hive/hypershift-operator/pkg/controllers/infrastatus"
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/kubeadminpwd"
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/kubelet_serving_ca"
 	"github.com/openshift-hive/hypershift-operator/pkg/controllers/openshift_apiserver"
@@ -47,6 +48,7 @@ var controllerFuncs = map[string]operator.ControllerSetupFunc{
 	"openshift-apiserver":          openshift_apiserver.Setup,
 	"openshift-controller-manager": openshift_controller_manager.Setup,
 	"route-sync":                   routesync.Setup,
+	"infrastatus":                  infrastatus.Setup,
 }
 
 type ControlPlaneOperator struct {
