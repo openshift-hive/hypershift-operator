@@ -74,7 +74,7 @@ type ControlPlaneOperator struct {
 func newControlPlaneOperatorCommand() *cobra.Command {
 	cpo := newControlPlaneOperator()
 	cmd := &cobra.Command{
-		Use:   "control-plane-operator",
+		Use:   "hypershift-operator",
 		Short: "The Hypershift Control Plane Operator contains a set of controllers that manage an OpenShift hosted control plane.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := cpo.Validate(); err != nil {

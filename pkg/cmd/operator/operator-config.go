@@ -67,7 +67,7 @@ func (c *ControlPlaneOperatorConfig) Manager() ctrl.Manager {
 			Scheme:                  c.Scheme(),
 			LeaderElection:          true,
 			LeaderElectionNamespace: c.TargetNamespace(),
-			LeaderElectionID:        "control-plane-operator",
+			LeaderElectionID:        "hypershift-operator",
 			Namespace:               c.TargetNamespace(),
 		})
 		if err != nil {
@@ -94,7 +94,7 @@ func (c *ControlPlaneOperatorConfig) Config() *rest.Config {
 
 func (c *ControlPlaneOperatorConfig) Logger() logr.Logger {
 	if c.logger == nil {
-		c.logger = ctrl.Log.WithName("control-plane-operator")
+		c.logger = ctrl.Log.WithName("hypershift-operator")
 	}
 	return c.logger
 }

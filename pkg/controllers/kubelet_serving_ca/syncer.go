@@ -15,9 +15,6 @@ import (
 // syncInterval is the amount of time to use between checks
 var syncInterval = 20 * time.Minute
 
-// controlPlaneOperatorConfig is the name of the source configmap on the management cluster
-const controlPlaneOperatorConfig = "control-plane-operator"
-
 type KubeletServingCASyncer struct {
 	TargetClient kubeclient.Interface
 	Log          logr.Logger
