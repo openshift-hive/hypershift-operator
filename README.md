@@ -1,5 +1,10 @@
 # Hypershift Operator
 
+## Archived!
+
+**NOTE: This repository is no longer maintained.**
+Follow the hypershift project at https://github.com/openshift/hypershift/
+
 ## Overview
 The Hypershift operator contains a set of controllers that manage the control plane components of a 
 hosted control plane cluster created with the [Hypershift Installer](https://github.com/openshift-hive/hypershift-installer).
